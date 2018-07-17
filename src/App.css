@@ -37,6 +37,21 @@
   border: 1px solid black;
 }
 
+.add-button {
+  width: 100%;
+  font-size: 2em;
+  background-color: white;
+  border: 2px solid black;
+  cursor: pointer;
+}
+
+.delete-button {
+  width: 100px;
+  background-color: white;
+  border: 2px solid black;
+  font-size: 1.5em;
+}
+
 table {
   width: 100%;
 }
@@ -49,4 +64,13 @@ tr {
 }
 tr:nth-child(2n) {
   background-color: #ddd;
+}
+
+td:first-child {
+  width: 102px;
+}
+
+td:nth-child(2) {
+  width: 100px;
+  text-align: left;
 }

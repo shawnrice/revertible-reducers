@@ -14,7 +14,7 @@ server.use(
 
 const randomFail = (req, res, next) => {
   if (Math.floor(Math.random() * 100) < 10) {
-    res.sendStatus(400);
+    res.status(400).send({ msg: 'Bad Request' });
   } else {
     next();
   }

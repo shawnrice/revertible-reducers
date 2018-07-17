@@ -1,4 +1,8 @@
-const toJSON = res => res.json();
+const toJSON = res => {
+  return res.status < 400
+    ? Promise.resolve(res.json())
+    : Promise.reject(Object.assign({}, { code: res.status }, res.json()));
+};
 
 export const client = {
   get: (url, data) => fetch(url).then(toJSON),

@@ -6,7 +6,7 @@ const rando = () => Math.random().toString(36);
 const makeKeys = (name, method) =>
   ['PENDING', 'SUCCESS', 'FAILURE'].map(status => `@${name}/${method}/${status}`);
 
-const listMerge = (data, result) => ({
+const mergeListIntoData = (data, result) => ({
   ...data,
   ...result.reduce(
     (acc, item) => ({
@@ -17,19 +17,19 @@ const listMerge = (data, result) => ({
   ),
 });
 
-const addTmpID = (data, id, record) => ({
+const addRecordWithTmpId = (data, id, record) => ({
   ...data,
   [id]: { id, ...record },
 });
 
-const addKey = (data, record) => ({
+const addRecord = (data, record) => ({
   ...data,
   [record.id]: record,
 });
 
-const replaceKey = (data, key, record) => addKey(removeKey(data, key), record);
+const replaceRecord = (data, key, record) => addRecord(removeRecord(data, key), record);
 
-const removeKey = (data, key) => {
+const removeRecord = (data, key) => {
   // I'm not a fan of using delete here, but destructing turns numbers into strings, and so we cannot
   // find the actual key.
   delete data[key];
@@ -43,18 +43,14 @@ const defaultMethodMap = {
   UPDATE: 'put',
   DELETE: 'del',
 };
-const defaultInitial = {
-  pending: false,
-  error: false,
+
+// Right now, the initial state is not editable
+const initialState = {
+  pending: 0,
   data: {},
 };
 
-export function createReducer(
-  name,
-  urlMap,
-  methodMap = defaultMethodMap,
-  initial = defaultInitial
-) {
+export function createReducer(name, urlMap, methodMap = defaultMethodMap) {
   // We're going to use this cache to store request information while requests are processing
   const cache = new Map();
   // methods are configurable. see default above.
@@ -91,67 +87,78 @@ export function createReducer(
   };
 
   const LIST = handleMethod('LIST', {
-    pending: (state, action) => state,
-    success: (state, action, __data) => ({
-      ...state,
-      data: listMerge(state.data, action.result),
+    pending: (state, action) => ({
+      pending: state.pending + 1,
+      data: state.data,
     }),
-    failure: (state, action, __data) => state,
+    success: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: mergeListIntoData(state.data, action.result),
+    }),
+    failure: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: state.data,
+    }),
   });
 
   const CREATE = handleMethod('CREATE', {
     pending: (state, action) => ({
-      ...state,
-      data: addTmpID(state.data, action.requestKey, action.data),
+      pending: state.pending + 1,
+      data: addRecordWithTmpId(state.data, action.requestKey, action.data),
     }),
     success: (state, action, __data) => ({
-      ...state,
-      data: replaceKey(state.data, action.requestKey, action.result),
+      pending: state.pending - 1,
+      data: replaceRecord(state.data, action.requestKey, action.result),
     }),
     failure: (state, action, __data) => ({
-      ...state,
-      data: removeKey(state.data, action.requestKey),
+      pending: state.pending - 1,
+      data: removeRecord(state.data, action.requestKey),
     }),
   });
 
   const READ = handleMethod('READ', {
-    pending: (state, action) => state,
-    success: (state, action, __data) => ({
-      ...state,
-      data: addKey(state.data, action.result),
+    pending: (state, action) => ({
+      pending: state.pending + 1,
+      data: state.data,
     }),
-    failure: (state, action, __data) => state,
+    success: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: addRecord(state.data, action.result),
+    }),
+    failure: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: state.data,
+    }),
   });
 
   const UPDATE = handleMethod('UPDATE', {
     pending: (state, action) => ({
-      ...state,
-      data: replaceKey(state.data, action.data.id, action.data),
+      pending: state.pending + 1,
+      data: replaceRecord(state.data, action.data.id, action.data),
     }),
-    success: (state, action, __data) => state,
+    success: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: replaceRecord(state.data, action.data.id, action.result),
+    }),
     failure: (state, action, __data) => ({
-      ...state,
-      data: replaceKey(state.data, action.data.id, __data),
+      pending: state.pending - 1,
+      data: replaceRecord(state.data, action.data.id, __data),
     }),
   });
 
   const DELETE = handleMethod('DELETE', {
-    pending: (state, action) => {
-      return {
-        ...state,
-        data: removeKey(state.data, action.data.id),
-      };
-    },
-    success: (state, action, __data) => state,
-    failure: (state, action, __data) => {
-      return {
-        ...state,
-        data: {
-          ...state.data,
-          [__data.id]: __data,
-        },
-      };
-    },
+    pending: (state, action) => ({
+      pending: state.pending + 1,
+      data: removeRecord(state.data, action.data.id),
+    }),
+    success: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: state.data,
+    }),
+    failure: (state, action, __data) => ({
+      pending: state.pending - 1,
+      data: addRecord(state.data, __data),
+    }),
   });
 
   const reducerMap = {
@@ -162,7 +169,7 @@ export function createReducer(
     DELETE,
   };
 
-  function reducer(state = initial, action = {}) {
+  function reducer(state = initialState, action = {}) {
     if (!startsWith(action.type, `@${name}`)) {
       return state;
     }
@@ -175,7 +182,7 @@ export function createReducer(
     const [PENDING, SUCCESS, FAILURE] = makeKeys(name, method);
     const url = urlMap[method.toLowerCase()](data);
 
-    const success = result =>
+    const success = result => {
       dispatch({
         type: SUCCESS,
         result,
@@ -183,7 +190,10 @@ export function createReducer(
         data,
       });
 
-    const fail = error =>
+      return Promise.resolve(result);
+    };
+
+    const fail = error => {
       dispatch({
         type: FAILURE,
         error,
@@ -191,15 +201,16 @@ export function createReducer(
         data,
       });
 
+      return Promise.reject(error);
+    };
+
     dispatch({
       type: PENDING,
       requestKey,
       data,
     });
 
-    client[getMethod(method)](url, data)
-      .then(success, fail)
-      .catch(fail);
+    return client[getMethod(method)](url, data).then(success, fail);
   };
 
   return {

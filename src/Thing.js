@@ -4,24 +4,53 @@ import { list, create, read, update, del } from './redux/modules/things';
 
 class Thing extends PureComponent {
   componentDidMount() {
-    this.props.list();
+    this.loadAll();
   }
 
+  loadAll = () => {
+    this.props.list().catch(() => {
+      console.error('Listing failed. Retrying to load in 100ms');
+      setTimeout(this.loadAll, 100);
+    });
+  };
+
   add = () => {
-    this.props.create({ name: Math.random().toString(36) });
+    const name = Math.random().toString(36);
+    this.props
+      .create({ name })
+      .then(res => {
+        console.log('Successfully created resource with name', name);
+        console.log('Received response:', res);
+      })
+      .catch(err => {
+        console.error('Error creating resource with name', name);
+        console.error('Recevied error:', err);
+      });
   };
 
   del = id => {
-    this.props.del({ id });
+    this.props
+      .del({ id })
+      .then(res => {
+        console.log('Successfully deleted resource with id', id);
+        console.log('Received response:', res);
+      })
+      .catch(err => {
+        console.error('Error deleting resource with id', id);
+        console.error('Recevied error:', err);
+      });
   };
 
   renderThing = data => {
     return (
       <tr key={data.id}>
         <td>
-          <button onClick={() => this.del(data.id)}>x</button>
+          <button onClick={() => this.del(data.id)} className="delete-button">
+            x
+          </button>
         </td>
-        {Object.keys(data).map(key => <td key={key}>{data[key]}</td>)}
+        <td>{data.id}</td>
+        <td>{data.name}</td>
       </tr>
     );
   };
@@ -29,12 +58,15 @@ class Thing extends PureComponent {
     return (
       <div className={this.props.className}>
         <h2>Things!</h2>
+        <h3>Pending requests: {this.props.pending}</h3>
+        <button onClick={this.add} className="add-button">
+          Add
+        </button>
         <table>
           <tbody>
             {Object.keys(this.props.data).map(id => this.renderThing(this.props.data[id]))}
           </tbody>
         </table>
-        <button onClick={this.add}>Add</button>
       </div>
     );
   }
@@ -42,6 +74,7 @@ class Thing extends PureComponent {
 
 export default connect(
   state => ({
+    pending: state.things.pending,
     data: state.things.data || {},
   }),
   { list, create, read, update, del }

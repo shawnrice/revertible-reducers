@@ -1,6 +1,5 @@
-import counter from './modules/counter';
 import things from './modules/things';
 
-const rootReducer = { counter, things };
+const rootReducer = { things };
 
 export default rootReducer;
