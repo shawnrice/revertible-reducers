@@ -1,5 +1,8 @@
-import { createStore, combineReducers, applyMiddleware } from 'redux';
+import { createStore, combineReducers, applyMiddleware, compose } from 'redux';
+import { promiseMiddleware } from './modules/revertableReducer';
+
 import rootReducer from './rootReducer';
+import client from '../client';
 
 const logger = store => next => action => {
   console.log('dispatching', action);
@@ -8,8 +11,13 @@ const logger = store => next => action => {
   return result;
 };
 
+const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
+
 const reducers = combineReducers(rootReducer);
 
-const store = createStore(reducers, applyMiddleware(logger));
+const store = createStore(
+  reducers,
+  composeEnhancers(applyMiddleware(logger, promiseMiddleware(client)))
+);
 
 export default store;
