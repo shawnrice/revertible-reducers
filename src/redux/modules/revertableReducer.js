@@ -3,26 +3,8 @@ import { client } from '../../client';
 const startsWith = (haystack, needle) => haystack.indexOf(needle) === 0;
 const rando = () => Math.random().toString(36);
 
-function makeKeys(name, action) {
-  return ['PENDING', 'SUCCESS', 'FAILURE'].map(
-    status => `@${name}/${action.toUpperCase()}/${status}`
-  );
-}
-
-function getMethod(method) {
-  switch (method.toUpperCase()) {
-    case 'CREATE':
-      return 'post';
-    case 'UPDATE':
-      return 'put';
-    case 'DELETE':
-      return 'del';
-    case 'LIST':
-    case 'READ':
-    default:
-      return 'get';
-  }
-}
+const makeKeys = (name, method) =>
+  ['PENDING', 'SUCCESS', 'FAILURE'].map(status => `@${name}/${method}/${status}`);
 
 const listMerge = (data, result) => ({
   ...data,
@@ -40,42 +22,65 @@ const addTmpID = (data, id, record) => ({
   [id]: { id, ...record },
 });
 
-const addId = (data, record) => ({
+const addKey = (data, record) => ({
   ...data,
   [record.id]: record,
 });
 
-const replaceId = (data, id, record) => {
-  const { [id]: removed, ...rest } = data;
-  return addId(rest, record);
-};
+const replaceKey = (data, key, record) => addKey(removeKey(data, key), record);
 
-const removeId = (data, id) => {
+const removeKey = (data, key) => {
   // I'm not a fan of using delete here, but destructing turns numbers into strings, and so we cannot
-  // find the actual id.
-  delete data[id];
+  // find the actual key.
+  delete data[key];
   return Object.assign({}, data);
 };
-export function createReducer(name, urlMap, initial) {
+
+const defaultMethodMap = {
+  LIST: 'get',
+  CREATE: 'post',
+  READ: 'get',
+  UPDATE: 'put',
+  DELETE: 'del',
+};
+const defaultInitial = {
+  pending: false,
+  error: false,
+  data: {},
+};
+
+export function createReducer(
+  name,
+  urlMap,
+  methodMap = defaultMethodMap,
+  initial = defaultInitial
+) {
+  // We're going to use this cache to store request information while requests are processing
   const cache = new Map();
+  // methods are configurable. see default above.
+  const getMethod = m => methodMap[m.toUpperCase()];
 
+  // This creates subreducers to handle the redux actions generated in the request lifecycle
+  // of a request
   const handleMethod = (method, { pending, success, failure }) => {
-    method = method.toUpperCase();
-    const prefix = `@${name}/${method}`;
+    const [PENDING, SUCCESS, FAILURE] = makeKeys(name, method);
 
+    // Since we need to create variables to pull data, we need the if statements rather than the
+    // standard switch because we can't declare consts in a switch scope
     return function subreducer(state, action) {
-      if (action.type === `${prefix}/PENDING`) {
-        cache.set(action.requestKey, action.data);
+      if (action.type === PENDING) {
+        const data = method === 'DELETE' ? state.data[action.data.id] : action.data;
+        cache.set(action.requestKey, data);
         return pending(state, action);
       }
 
-      if (action.type === `${prefix}/SUCCESS`) {
+      if (action.type === SUCCESS) {
         const __data = cache.get(action.requestKey);
         cache.delete(action.requestKey);
         return success(state, action, __data);
       }
 
-      if (action.type === `${prefix}/FAILURE`) {
+      if (action.type === FAILURE) {
         const __data = cache.get(action.requestKey);
         cache.delete(action.requestKey);
         return failure(state, action, __data);
@@ -101,11 +106,11 @@ export function createReducer(name, urlMap, initial) {
     }),
     success: (state, action, __data) => ({
       ...state,
-      data: replaceId(state.data, action.requestKey, action.result),
+      data: replaceKey(state.data, action.requestKey, action.result),
     }),
     failure: (state, action, __data) => ({
       ...state,
-      data: removeId(state.data, action.requestKey),
+      data: removeKey(state.data, action.requestKey),
     }),
   });
 
@@ -113,7 +118,7 @@ export function createReducer(name, urlMap, initial) {
     pending: (state, action) => state,
     success: (state, action, __data) => ({
       ...state,
-      data: addId(state.data, action.result),
+      data: addKey(state.data, action.result),
     }),
     failure: (state, action, __data) => state,
   });
@@ -121,12 +126,12 @@ export function createReducer(name, urlMap, initial) {
   const UPDATE = handleMethod('UPDATE', {
     pending: (state, action) => ({
       ...state,
-      data: replaceId(state.data, action.data.id, action.data),
+      data: replaceKey(state.data, action.data.id, action.data),
     }),
     success: (state, action, __data) => state,
     failure: (state, action, __data) => ({
       ...state,
-      data: replaceId(state.data, action.data.id, __data),
+      data: replaceKey(state.data, action.data.id, __data),
     }),
   });
 
@@ -134,7 +139,7 @@ export function createReducer(name, urlMap, initial) {
     pending: (state, action) => {
       return {
         ...state,
-        data: removeId(state.data, action.data.id),
+        data: removeKey(state.data, action.data.id),
       };
     },
     success: (state, action, __data) => state,
@@ -165,39 +170,37 @@ export function createReducer(name, urlMap, initial) {
     return reducerMap[METHOD] ? reducerMap[METHOD](state, action) : state;
   }
 
-  function handleRequest(method) {
-    return data => (getState, dispatch) => {
-      const requestKey = rando();
-      const [PENDING, SUCCESS, FAILURE] = makeKeys(name, method);
-      const url = urlMap[method.toLowerCase()](data);
+  const handleRequest = method => data => (_, dispatch) => {
+    const requestKey = rando();
+    const [PENDING, SUCCESS, FAILURE] = makeKeys(name, method);
+    const url = urlMap[method.toLowerCase()](data);
 
-      const success = result =>
-        dispatch({
-          type: SUCCESS,
-          result,
-          requestKey,
-          data,
-        });
-
-      const fail = error =>
-        dispatch({
-          type: FAILURE,
-          error,
-          requestKey,
-          data,
-        });
-
+    const success = result =>
       dispatch({
-        type: PENDING,
+        type: SUCCESS,
+        result,
         requestKey,
         data,
       });
 
-      client[getMethod(method)](url, data)
-        .then(success, fail)
-        .catch(fail);
-    };
-  }
+    const fail = error =>
+      dispatch({
+        type: FAILURE,
+        error,
+        requestKey,
+        data,
+      });
+
+    dispatch({
+      type: PENDING,
+      requestKey,
+      data,
+    });
+
+    client[getMethod(method)](url, data)
+      .then(success, fail)
+      .catch(fail);
+  };
 
   return {
     reducer,
@@ -208,8 +211,6 @@ export function createReducer(name, urlMap, initial) {
     del: handleRequest('DELETE'),
   };
 }
-
-// const removeArrayKey = arr => key => arr.filter(item => item !== key);
 
 export const promiseMiddleware = client => ({ dispatch, getState }) => next => action =>
   typeof action === 'function' ? action(getState, dispatch) : next(action);
