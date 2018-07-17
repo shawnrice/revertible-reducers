@@ -1,4 +1,4 @@
-import React, { Fragment, PureComponent } from 'react';
+import React, { PureComponent } from 'react';
 import { connect } from 'react-redux';
 import { list, create, read, update, del } from './redux/modules/things';
 
@@ -26,14 +26,11 @@ class Thing extends PureComponent {
     );
   };
   render() {
-    const things = [];
-    this.props.data.forEach(value => things.push(this.renderThing(value)));
     return (
       <div className={this.props.className}>
         <h2>Things!</h2>
         <table>
           <tbody>
-            {things}
             {Object.keys(this.props.data).map(id => this.renderThing(this.props.data[id]))}
           </tbody>
         </table>

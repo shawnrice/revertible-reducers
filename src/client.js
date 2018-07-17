@@ -1,7 +1,7 @@
 const toJSON = res => res.json();
 
 export const client = {
-  get: url => fetch(url).then(toJSON),
+  get: (url, data) => fetch(url).then(toJSON),
   put: (url, data) =>
     fetch(url, {
       method: 'PUT',

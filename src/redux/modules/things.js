@@ -3,11 +3,11 @@ import { createReducer } from './revertableReducer';
 const { reducer, list, create, read, update, del } = createReducer(
   'THING',
   {
-    LIST: () => '/api/things',
-    CREATE: data => '/api/things',
-    READ: data => `/api/things/${data.id}`,
-    UPDATE: data => `/api/things/${data.id}`,
-    DELETE: data => `/api/things/${data.id}`,
+    list: () => '/api/things',
+    create: data => '/api/things',
+    read: data => `/api/things/${data.id}`,
+    update: data => `/api/things/${data.id}`,
+    delete: data => `/api/things/${data.id}`,
   },
   {
     pending: false,
