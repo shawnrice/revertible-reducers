@@ -1,5 +1,5 @@
 import { createStore, combineReducers, applyMiddleware, compose } from 'redux';
-import { promiseMiddleware } from './modules/revertableReducer';
+import { promiseMiddleware } from './modules/revertibleReducer';
 
 import rootReducer from './rootReducer';
 import client from '../client';

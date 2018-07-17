@@ -1,4 +1,4 @@
-import { createReducer } from './revertableReducer';
+import { createReducer } from './revertibleReducer';
 
 const { reducer, list, create, read, update, del } = createReducer('THING', {
   list: () => '/api/things',
