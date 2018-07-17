@@ -2,6 +2,27 @@ import React, { PureComponent } from 'react';
 import { connect } from 'react-redux';
 import { list, create, read, update, del } from './redux/modules/things';
 
+class Input extends PureComponent {
+  state = {
+    value: this.props.value || '',
+  };
+  onBlur = event => {
+    this.props.onBlur(this.state.value);
+  };
+
+  onChange = event => {
+    const { value } = event.target;
+    this.setState({ value });
+  };
+  render() {
+    const { name = '' } = this.props;
+    const { value } = this.state;
+    return (
+      <input type="text" name={name} value={value} onChange={this.onChange} onBlur={this.onBlur} />
+    );
+  }
+}
+
 class Thing extends PureComponent {
   componentDidMount() {
     this.loadAll();
@@ -41,6 +62,19 @@ class Thing extends PureComponent {
       });
   };
 
+  update = data => {
+    this.props
+      .update(data)
+      .then(res => {
+        console.log('Successfully updated resource with id', data.id);
+        console.log('Received response:', res);
+      })
+      .catch(err => {
+        console.error('Error updating resource with id', data.id);
+        console.error('Received error:', err);
+      });
+  };
+
   renderThing = data => {
     return (
       <tr key={data.id}>
@@ -50,7 +84,13 @@ class Thing extends PureComponent {
           </button>
         </td>
         <td>{data.id}</td>
-        <td>{data.name}</td>
+        <td>
+          <Input
+            name={'a' + data.id}
+            value={data.name}
+            onBlur={name => this.update({ id: data.id, name })}
+          />
+        </td>
       </tr>
     );
   };
