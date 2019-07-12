@@ -1,6 +1,6 @@
 # Revertible Reducers
 
-Example implmentation of revertible CRUD API reducers.
+Example implementation of revertible CRUD API reducers.
 
 We're not holding a strict undo/redo stack here because there's always the chance that network
 requests will return out of order having us undo the wrong store update.
